@@ -1,0 +1,15 @@
+# Virtual environment
+i2r/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Generated outputs
+outputs/
+
+# Raw datasets (usually large)
+data/raw/
