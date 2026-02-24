@@ -13,3 +13,5 @@ outputs/
 
 # Raw datasets (usually large)
 data/raw/
+
+data/generated/
