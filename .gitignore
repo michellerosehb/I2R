@@ -10,8 +10,12 @@ __pycache__/
 
 # Generated outputs
 outputs/
+data/generated/
+images/
 
-# Raw datasets (usually large)
+# Raw datasets
 data/raw/
 
-data/generated/
+# OS/editor files
+.DS_Store
+.vscode/
