@@ -167,3 +167,74 @@ The following tasks still need to be completed:
 The current goal of the project is to create a complete and structured chart generation pipeline. The pipeline should be able to generate chart images automatically, save the corresponding metadata and tables, and test every parameter setting separately.
 
 This makes it possible to inspect the generated charts in a systematic way and to improve the chart generation process step by step.
+
+## High-throughput generation
+
+All four final notebooks support cached, resumable generation for computational nodes:
+
+```text
+notebooks/final_notebook_v1/notebooks/bar_generator_FINAL.ipynb
+notebooks/final_notebook_v1/notebooks/line_generator_FINAL.ipynb
+notebooks/final_notebook_v1/notebooks/pie_generator_FINAL.ipynb
+notebooks/final_notebook_v1/notebooks/scatter_generator_FINAL.ipynb
+```
+
+Every generated example is a complete SVG/CSV/JSON triple. IDs are deterministic from
+the chart type, plotting library, and seed, so an interrupted run can safely resume.
+
+Prepare the cleaned Parquet datasets once before starting a large batch:
+
+```bash
+python -m src.bar_datasets --project-root .
+```
+
+The first run of each notebook reads and cleans the source CSV files. Later runs load
+Parquet files from `data/processed/<chart-type>/datasets/`. Expensive group-by results
+are cached lazily under `data/processed/<chart-type>/aggregations/`. The standalone
+command above currently prebuilds the bar cache; the other notebooks build their
+cache once when first executed.
+
+### Chart data sampling and uniqueness
+
+The production samplers live in `src/bar_sampling.py`, `src/line_sampling.py`,
+`src/pie_sampling.py`, and `src/scatter_sampling.py`. Each sampler first selects a
+meaningful dataset or time slice and then samples source rows without replacement.
+Selection is deterministic for a fixed source snapshot and RNG seed. Reusable
+row-position indexes avoid rescanning a large source dataset for every chart.
+
+Metadata records the filters, eligible population size, sampled-row count, sampling
+fraction, and `source_sample_id`. The final plotted table is also assigned a canonical
+`sample_hash`. Both identifiers are claimed in the chart type's manifest, for example
+`manifests/line_uniqueness.sqlite`. If either the source rows or resulting table were
+already used, generation retries before writing output. Keep each manifest with its
+output directory when resuming a run.
+
+The notebook is configured through environment variables:
+
+```bash
+export I2R_PROJECT_ROOT=/path/to/I2R
+export I2R_BAR_OUTPUT=/path/to/generated/barplots
+export I2R_BAR_CHARTS_PER_LIBRARY=2500
+export I2R_BAR_START_SEED=1000
+export I2R_BAR_TITLE_MODE=template
+export I2R_CLEAR_OUTPUT=0
+export I2R_RESUME_OUTPUT=1
+```
+
+For line, pie, or scatter, replace `BAR` in the chart-specific variables with `LINE`,
+`PIE`, or `SCATTER`. For example, use `I2R_LINE_CHARTS_PER_LIBRARY` and
+`I2R_LINE_START_SEED`. The optional output variables are `I2R_BAR_OUTPUT`,
+`I2R_LINE_OUTPUT`, `I2R_PIE_OUTPUT`, and `I2R_SCATTER_OUTPUT`.
+
+`template` title mode is the fast production default. Set the chart-specific title
+mode to `ollama` to generate titles with Ollama; responses are cached under that
+chart type's processed-data directory.
+
+For a multi-process or scheduler-array run, build the dataset cache first and assign
+each worker a disjoint start-seed range. Workers may share the same output and
+aggregation-cache directories because chart IDs are deterministic and aggregation
+cache writes are atomic. Use template title mode for parallel jobs; each JSON Ollama
+title cache is intended for a single writer.
+
+Plotly SVG export is pinned to Plotly 6 with Kaleido 0.2.1 so it works on a headless
+node without installing Chrome.

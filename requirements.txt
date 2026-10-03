@@ -5,3 +5,8 @@ vega_datasets
 pyarrow
 jupyter
 matplotlib
+seaborn
+plotly>=6,<7
+kaleido==0.2.1
+vl-convert-python
+ollama
